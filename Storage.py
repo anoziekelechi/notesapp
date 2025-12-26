@@ -1,3 +1,52 @@
+import magic
+from fastapi import HTTPException, UploadFile, status
+from typing import Set
+
+# 2025 recommendation: be explicit + allow modern formats
+ALLOWED_MIME_TYPES: Set[str] = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/avif",          # gaining traction in 2025
+}
+
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MiB
+
+
+async def validate_image_file_securely(file: UploadFile) -> str:
+    """
+    Validates file type using libmagic (real content, not just extension)
+    Also checks size early.
+    Returns detected mime type on success.
+    """
+    if file.size and file.size > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File too large. Maximum allowed: {MAX_FILE_SIZE // (1024*1024)}MB"
+        )
+
+    # Read minimal header for type detection
+    header_bytes = await file.read(4096)  # increased to 4KB for better AVIF detection
+    await file.seek(0)  # critical: rewind!
+
+    try:
+        detected = magic.from_buffer(header_bytes, mime=True)
+    except Exception as e:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Could not determine file type: {str(e)}"
+        )
+
+    if detected not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported file type: {detected} (file: {file.filename})"
+        )
+
+    return detected
+
+#####
+
 from pathlib import Path
 import uuid
 
