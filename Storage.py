@@ -1,3 +1,50 @@
+#error
+Argument of type "Dict[str, str] | None" cannot be assigned to parameter "configuration" of type "Dict[str, Any]" in function "engine_from_config"
+  Type "Dict[str, str] | None" is not assignable to type "Dict[str, Any]"
+    "None" is not assignable to "Dict[str, Any]"PylancereportArgumentType
+(variable) config: Config
+
+
+#nullpool error
+Nullpool" is not a known attribute of module ".pool"PylancereportAttributeAccessIssue
+(function) Nullpool: Unknown
+#alembic
+
+from logging.config import fileConfig
+from sqlalchemy import engine_from_config,pool
+#from api.core.database import engine
+from alembic import context
+from sqlmodel import SQLModel
+# import all your databases here
+from src.ecommerce.users.models import User
+
+# configure alembic
+config = context.config
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
+    
+# use the async engine synchronously
+
+#connectable = engine.sync_engine
+connectable = engine_from_config(
+    config.get_section(config.config_ini_section),
+    prefix="sqlalchemy",
+    poolclass=pool.Nullpool
+)
+
+with connectable.connect() as connection:
+    context.configure(
+        connection = connection,
+        target_metadata = SQLModel.metadata,
+        compare_type = True,
+        compare_server_default= True,
+        version_table_schema=SQLModel.metadata.schema
+        
+    )
+    with context.begin_transaction():
+        context.run_migrations()
+
+
 
 # app/routers/home/routes.py
 from fastapi import (
